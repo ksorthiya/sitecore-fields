@@ -1,4 +1,4 @@
-﻿using ImageProcessor.Imaging;
+using ImageProcessor.Imaging;
 using Sitecore.Data.Items;
 using Sitecore.Diagnostics;
 using Sitecore.Resources.Media;
@@ -7,7 +7,7 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 
-namespace Sitecore.Resources.Media
+namespace Formica.Foundation.Extensions.Pipelines.GetMediaStream
 {
     /// <summary>
     /// Utilizes the additional custom focus crop parameters to crop images.
@@ -19,40 +19,34 @@ namespace Sitecore.Resources.Media
         public void Process(GetMediaStreamPipelineArgs args)
         {
             Assert.ArgumentNotNull(args, "args");
-            
+
             var outputStream = args.OutputStream;
             if (outputStream == null)
             {
                 return;
             }
 
-            if (!IMAGE_EXTENSIONS.Any(i => i.Equals(args.MediaData.Extension, StringComparison.InvariantCultureIgnoreCase)))
+            if (IMAGE_EXTENSIONS.Any(i => i.Equals(args.MediaData.Extension, StringComparison.InvariantCultureIgnoreCase)))
             {
-                return;
-            }
+                var cx = args.Options.CustomOptions["cx"];
+                var cy = args.Options.CustomOptions["cy"];
+                var width = args.Options.CustomOptions["cw"];
+                var height = args.Options.CustomOptions["ch"];
 
-            var cx = args.Options.CustomOptions["cx"];
-            var cy = args.Options.CustomOptions["cy"];
-            var width = args.Options.CustomOptions["cw"];
-            var height = args.Options.CustomOptions["ch"];
-            float x, y;
-            int w, h;
-
-            if (!string.IsNullOrEmpty(cx) && !string.IsNullOrEmpty(cy) && float.TryParse(cx, out x) && float.TryParse(cy, out y) &&
-                !string.IsNullOrEmpty(width) && Int32.TryParse(width, out w) && !string.IsNullOrEmpty(height) && Int32.TryParse(height, out h))
-            {
-                var outputStrm = Stream.Synchronized(GetCroppedImage(args.MediaData.Extension, w, h, x, y, outputStream.MediaItem));
-                args.OutputStream = new MediaStream(outputStrm, args.MediaData.Extension, outputStream.MediaItem);
-            }
-            else if (args.Options.Thumbnail)
-            {
-                TransformationOptions transformationOptions = args.Options.GetTransformationOptions();
-                MediaStream thumbnailStream = args.MediaData.GetThumbnailStream(transformationOptions);
-
-                if (thumbnailStream != null)
+                if (!string.IsNullOrEmpty(cx) && !string.IsNullOrEmpty(cy) && float.TryParse(cx, out float x) && float.TryParse(cy, out float y) &&
+                    !string.IsNullOrEmpty(width) && Int32.TryParse(width, out int w) && !string.IsNullOrEmpty(height) && Int32.TryParse(height, out int h))
                 {
-                    args.OutputStream = thumbnailStream;
+                    var outputStrm = Stream.Synchronized(GetCroppedImage(args.MediaData.Extension, w, h, x, y, outputStream.MediaItem));
+                    args.OutputStream = new MediaStream(outputStrm, args.MediaData.Extension, outputStream.MediaItem);
                 }
+                else
+                {
+                    GetThumbnailStream(args);
+                }
+            }
+            else
+            {
+                GetThumbnailStream(args);
             }
         }
 
@@ -69,6 +63,19 @@ namespace Sitecore.Resources.Media
             proc.Save(outputStrm);
 
             return outputStrm;
+        }
+
+        private void GetThumbnailStream(GetMediaStreamPipelineArgs args)
+        {
+            if (args.Options.Thumbnail)
+            {
+                TransformationOptions transformationOptions = args.Options.GetTransformationOptions();
+                MediaStream thumbnailStream = args.MediaData.GetThumbnailStream(transformationOptions);
+                if (thumbnailStream != null)
+                {
+                    args.OutputStream = thumbnailStream;
+                }
+            }
         }
     }
 }
